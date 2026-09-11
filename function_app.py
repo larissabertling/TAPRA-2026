@@ -7,10 +7,6 @@ import requests
 app = func.FunctionApp()
 
 
-# ---------------------------------------------------------------------------
-# 1) TIMER TRIGGER - apenas imprime um log no terminal
-#    Roda a cada 1 minuto (formato cron do Azure: seg min hora dia mes dia-semana)
-# ---------------------------------------------------------------------------
 @app.timer_trigger(
     schedule="0 */1 * * * *",
     arg_name="myTimer",
@@ -21,10 +17,6 @@ def TimerLogOnly(myTimer: func.TimerRequest) -> None:
     logging.info("[TimerLogOnly] Timer trigger executado com sucesso!")
 
 
-# ---------------------------------------------------------------------------
-# 2) HTTP TRIGGER - recebe um parametro via GET na URL e imprime na tela
-#    Exemplo de chamada: http://localhost:7071/api/HttpEcho?nome=Joao
-# ---------------------------------------------------------------------------
 @app.route(route="HttpEcho", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def HttpEcho(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("[HttpEcho] Requisicao HTTP recebida.")
@@ -43,11 +35,7 @@ def HttpEcho(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(mensagem, status_code=200)
 
 
-# ---------------------------------------------------------------------------
-# 3) TIMER TRIGGER - faz uma chamada HTTP para a function HttpEcho
-#    e imprime no log a resposta recebida (parametro + texto de identificacao)
-#    Roda a cada 2 minutos, para dar tempo da funcao acima ja estar no ar.
-# ---------------------------------------------------------------------------
+
 @app.timer_trigger(
     schedule="0 */2 * * * *",
     arg_name="myTimer2",
