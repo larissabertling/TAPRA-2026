@@ -1,3 +1,4 @@
+```python
 import logging
 import os
 import requests
@@ -13,8 +14,8 @@ app = func.FunctionApp()
     use_monitor=False
 )
 def TimerLogOnly(myTimer: func.TimerRequest) -> None:
-    logging.info("Timer executado com sucesso!")
 
+    logging.info("Timer executado com sucesso!")
 
 @app.route(
     route="HttpEcho",
@@ -23,7 +24,7 @@ def TimerLogOnly(myTimer: func.TimerRequest) -> None:
 )
 def HttpEcho(req: func.HttpRequest) -> func.HttpResponse:
 
-    logging.info("Requisição HTTP recebida.")
+    logging.info("Requisicao HTTP recebida.")
 
     nome = req.params.get("nome")
 
@@ -43,7 +44,6 @@ def HttpEcho(req: func.HttpRequest) -> func.HttpResponse:
     )
 
 
-# Timer que chama a função HTTP
 @app.timer_trigger(
     schedule="0 */2 * * * *",
     arg_name="myTimer2",
@@ -56,7 +56,7 @@ def TimerCallsHttp(myTimer2: func.TimerRequest) -> None:
 
     url = os.environ.get(
         "HTTP_ECHO_URL",
-        "http://localhost:7071/api/HttpEcho"
+        "https://tapra2026-larissa.azurewebsites.net/api/HttpEcho"
     )
 
     nome = "TAPRA-2026"
@@ -72,3 +72,4 @@ def TimerCallsHttp(myTimer2: func.TimerRequest) -> None:
 
     except Exception as erro:
         logging.error(f"Erro ao chamar a HttpEcho: {erro}")
+```
