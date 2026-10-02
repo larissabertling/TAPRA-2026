@@ -1,75 +1,52 @@
-```python
 import logging
 import os
-import requests
+import pyodbc
 import azure.functions as func
-
+ 
 app = func.FunctionApp()
 
 
-@app.timer_trigger(
-    schedule="0 */1 * * * *",
-    arg_name="myTimer",
-    run_on_startup=False,
-    use_monitor=False
-)
-def TimerLogOnly(myTimer: func.TimerRequest) -> None:
+@app.timer_trigger(schedule="0 */1 * * * *", arg_name="myTimer", run_on_startup=False, use_monitor=False)
 
-    logging.info("Timer executado com sucesso!")
+def extract_chamado(myTimer: func.TimerRequest) -> None:
 
-@app.route(
-    route="HttpEcho",
-    methods=["GET"],
-    auth_level=func.AuthLevel.ANONYMOUS
-)
-def HttpEcho(req: func.HttpRequest) -> func.HttpResponse:
+    #capturar variaveis de ambiente
+    host_sql = os.getenv("HOST")
+    database_sql = os.getenv("DATABASE")
+    user_sql = os.getenv("USER")
+    pass_sql = os.getenv("PASSWORD")
 
-    logging.info("Requisicao HTTP recebida.")
 
-    nome = req.params.get("nome")
+    #string de conexao com PYODBC AZURE DB SQL
 
-    if not nome:
-        return func.HttpResponse(
-            "Envie um parametro 'nome' na URL. Exemplo: ?nome=Joao",
-            status_code=400
+    conn_str = (
+            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            f"SERVER={host_sql};"
+            f"DATABASE={database_sql};"
+            f"UID={user_sql};"
+            f"PWD={pass_sql};"
+            f"Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
         )
-
-    mensagem = f"Voce enviou: {nome} - processado pela HttpEcho!"
-
-    logging.info(mensagem)
-
-    return func.HttpResponse(
-        mensagem,
-        status_code=200
-    )
-
-
-@app.timer_trigger(
-    schedule="0 */2 * * * *",
-    arg_name="myTimer2",
-    run_on_startup=False,
-    use_monitor=False
-)
-def TimerCallsHttp(myTimer2: func.TimerRequest) -> None:
-
-    logging.info("Iniciando chamada HTTP para a HttpEcho...")
-
-    url = os.environ.get(
-        "HTTP_ECHO_URL",
-        "https://tapra2026-larissa.azurewebsites.net/api/HttpEcho"
-    )
-
-    nome = "TAPRA-2026"
 
     try:
-        resposta = requests.get(
-            url,
-            params={"nome": nome},
-            timeout=10
-        )
+            conexao = pyodbc.connect(conn_str)
+            cursor = conexao.cursor()
 
-        logging.info(f"Resposta recebida: {resposta.text}")
+            cursor.execute("SELECT TOP 10 * FROM categoria")
+            colunas = [coluna[0] for coluna in cursor.description]
+            linhas = cursor.fetchall()
+
+            logging.info(f"[extract_categoria] {len(linhas)} registro(s) encontrado(s):")
+            for linha in linhas:
+                registro = dict(zip(colunas, linha))
+                logging.info(f"[extract_categoria] {registro}")
+
+            cursor.close()
+            conexao.close()
 
     except Exception as erro:
-        logging.error(f"Erro ao chamar a HttpEcho: {erro}")
-```
+            logging.error(f"[extract_categoria] Erro ao conectar/consultar o banco: {erro}")
+
+
+
+
