@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 import azure.functions as func
 import pyodbc
 from azure.storage.blob import BlobServiceClient
+from carga import executar_carga
+from azure.storage.blob import BlobServiceClient
 
 app = func.FunctionApp()
 
@@ -15,7 +17,7 @@ def salvar_no_bronze(tabela, colunas, rows):
     storage_conn = os.getenv("STORAGE_CONNECTION_STRING")
     container_name = os.getenv("CONTAINER_NAME", "bronze")
 
-    registros = [dict(zip(colunas, row)) for row in rows]
+    registros = [dict(zip(colunas, row, strict=True)) for row in rows]
     conteudo = json.dumps(registros, default=str, ensure_ascii=False)
 
     agora = datetime.now(timezone.utc)
@@ -321,4 +323,18 @@ def extract_solicitante(myTimer: func.TimerRequest) -> None:
             salvar_no_bronze("solicitante", colunas, rows)
     except Exception as e:
         logging.error(f"Erro ao ler itsm.solicitante: {str(e)}")
+        raise
+
+@app.timer_trigger(
+    schedule="0 0 6 * * *",  # uma vez ao dia, 06:00 UTC (03:00 em Brasília)
+    arg_name="myTimer",
+    run_on_startup=False,
+    use_monitor=False,
+)
+def load_destino(myTimer: func.TimerRequest) -> None:
+    """Popula as tabelas do banco de destino a partir do bronze, respeitando as FKs."""
+    try:
+        executar_carga()
+    except Exception as e:
+        logging.error(f"Erro ao popular o banco de destino: {str(e)}")
         raise

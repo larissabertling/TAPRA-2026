@@ -87,7 +87,6 @@ def carregar_storage():
 
 
 def gerar_sql(dados, schema="dbo"):
-    linhas = [f"-- Gerado automaticamente. REVISE tipos e chaves antes de executar.\n"]
     for t in TABELAS:
         regs = dados.get(t)
         if not regs:
