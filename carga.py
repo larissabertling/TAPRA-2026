@@ -13,6 +13,7 @@ ORDEM_CARGA = [
     "analista",
     "solicitante",
     "chamado",
+    "chamado_sla",
     "chamado_status_historico",
     "csat_avaliacao",
 ]
@@ -96,3 +97,28 @@ def carregar_destino(dados_por_tabela, conn, schema="dbo"):
             cursor.execute(f"DELETE FROM {_ident(schema)}.{_ident(t)}")
         for t in tabelas:
             _inserir(cursor, schema, t, dados_por_tabela[t])
+
+def executar_carga():
+    """Lê o bronze, substitui o conteúdo do destino numa única transação e confirma."""
+    dados = {}
+    for t in ORDEM_CARGA:
+        registros = ler_ultimo_bronze(t)
+        if registros:
+            dados[t] = registros
+        else:
+            logging.warning(f"Bronze sem arquivo para '{t}'; tabela ignorada na carga")
+
+    if not dados:
+        logging.warning("Nenhum dado no bronze; carga cancelada")
+        return
+
+    conn = conectar_destino()
+    try:
+        carregar_destino(dados, conn)
+        conn.commit()
+        logging.info(f"Carga concluída: {len(dados)} tabela(s)")
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
