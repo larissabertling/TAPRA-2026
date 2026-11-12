@@ -6,7 +6,7 @@ import os
 import re
 
 TABELAS = [
-    "chamado", "analista", "categoria", "chamado_status_historico",
+    "chamado", "analista", "categoria", "chamado_sla", "chamado_status_historico",
     "cliente_organizacao", "csat_avaliacao", "fila", "sla", "solicitante",
 ]
 
@@ -87,6 +87,7 @@ def carregar_storage():
 
 
 def gerar_sql(dados, schema="dbo"):
+    linhas = []
     for t in TABELAS:
         regs = dados.get(t)
         if not regs:
