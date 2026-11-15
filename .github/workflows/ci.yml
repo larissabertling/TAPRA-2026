@@ -19,7 +19,7 @@ jobs:
       id-token: write
       contents: read
     env:
-      AZURE_FUNCTIONAPP_NAME: 'nome-da-sua-function-app'
+      AZURE_FUNCTIONAPP_NAME: 'funcapp-tapra-larissa'
     steps:
       - uses: actions/checkout@v4
 
