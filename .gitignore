@@ -6,4 +6,3 @@ venv/
 bin/
 obj/
 local.settings.json
-.vscode/
