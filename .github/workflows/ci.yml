@@ -3,17 +3,41 @@ name: CI/CD
 on:
   push:
     branches: ["main"]
+  pull_request:
+    branches: ["main"]
 
 jobs:
   validar:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
       - run: python3 --version
-      - run: python3 -m py_compile function_app.py
+
+      - name: Checar se o código compila
+        run: python3 -m py_compile function_app.py
+
+      - name: Instalar ferramentas de qualidade
+        run: pip install -r requirements-dev.txt
+
+      - name: Verificação de imports (isort)
+        run: isort --check-only --diff .
+
+      - name: Formatação (black)
+        run: black --check --diff .
+
+      - name: Linting (ruff)
+        run: ruff check .
 
   deploy:
     needs: validar
+    # Só faz deploy em push na main (não em pull request)
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
