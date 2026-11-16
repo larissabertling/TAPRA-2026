@@ -1,8 +1,4 @@
-__pycache__/
-*.pyc
-.venv/
-venv/
-.python_packages/
-bin/
-obj/
 local.settings.json
+.venv/
+__pycache__/
+.python_packages/
