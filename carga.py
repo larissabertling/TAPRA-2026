@@ -2,9 +2,13 @@ import json
 import logging
 import os
 
-import pyodbc
+import pymssql
 from azure.storage.blob import BlobServiceClient
 
+FONTE = "itsm"
+
+# Ordem respeita as dependências: tabelas "pai" primeiro, tabelas que dependem delas depois.
+# (a exclusão é feita na ordem inversa)
 ORDEM_CARGA = [
     "sla",
     "categoria",
@@ -23,22 +27,23 @@ TAMANHO_LOTE = 1000
 
 def conectar_destino():
     """Abre conexão com o banco de destino usando variáveis de ambiente."""
-    conn_str = (
-        "DRIVER={ODBC Driver 18 for SQL Server};"
-        f"SERVER={os.environ['DEST_HOST']};"
-        f"DATABASE={os.environ['DEST_DATABASE']};"
-        f"UID={os.environ['DEST_USER']};"
-        f"PWD={os.environ['DEST_PASSWORD']};"
-        "Encrypt=yes;TrustServerCertificate=no;Connection Timeout=30;"
+    return pymssql.connect(
+        server=os.environ["DEST_HOST"],
+        user=os.environ["DEST_USER"],
+        password=os.environ["DEST_PASSWORD"],
+        database=os.environ["DEST_DATABASE"],
+        port=os.getenv("DEST_PORT", "1433"),
+        login_timeout=30,
     )
-    return pyodbc.connect(conn_str, autocommit=False)
 
 
 def ler_ultimo_bronze(tabela):
     """Lê o arquivo JSON mais recente da tabela no container bronze."""
     svc = BlobServiceClient.from_connection_string(os.environ["STORAGE_CONNECTION_STRING"])
     container = svc.get_container_client(os.getenv("CONTAINER_NAME", "bronze"))
-    blobs = sorted(b.name for b in container.list_blobs(name_starts_with=f"{tabela}/"))
+    # O nome inclui ano=/mes=/dia= e o carimbo AAAAMMDDTHHMMSSZ, então o último em
+    # ordem alfabética é o mais recente.
+    blobs = sorted(b.name for b in container.list_blobs(name_starts_with=f"{FONTE}/{tabela}/"))
     if not blobs:
         return None
     conteudo = container.download_blob(blobs[-1]).readall().decode("utf-8-sig")
@@ -54,14 +59,14 @@ def _ident(nome):
 
 def montar_insert(schema, tabela, colunas):
     cols = ", ".join(_ident(c) for c in colunas)
-    params = ", ".join("?" for _ in colunas)
+    params = ", ".join("%s" for _ in colunas)
     return f"INSERT INTO {_ident(schema)}.{_ident(tabela)} ({cols}) VALUES ({params})"
 
 
 def _tem_identity(cursor, schema, tabela):
     cursor.execute(
-        "SELECT OBJECTPROPERTY(OBJECT_ID(?), 'TableHasIdentity')",
-        f"{_ident(schema)}.{_ident(tabela)}",
+        "SELECT OBJECTPROPERTY(OBJECT_ID(%s), 'TableHasIdentity')",
+        (f"{_ident(schema)}.{_ident(tabela)}",),
     )
     return cursor.fetchone()[0] == 1
 
@@ -76,7 +81,6 @@ def _inserir(cursor, schema, tabela, registros):
     if identity:
         cursor.execute(f"SET IDENTITY_INSERT {tabela_sql} ON")
 
-    cursor.fast_executemany = True
     for i in range(0, len(valores), TAMANHO_LOTE):
         cursor.executemany(sql, valores[i : i + TAMANHO_LOTE])
 
@@ -89,6 +93,7 @@ def carregar_destino(dados_por_tabela, conn, schema="dbo"):
 
     `dados_por_tabela`: dict {tabela: lista_de_registros}. Tabelas sem dados são ignoradas
     (e não são apagadas), para não perder informação por falta de arquivo no bronze.
+    O commit/rollback é feito por quem chama, para que tudo seja uma única transação.
     """
     tabelas = [t for t in ORDEM_CARGA if dados_por_tabela.get(t)]
     cursor = conn.cursor()
@@ -97,6 +102,12 @@ def carregar_destino(dados_por_tabela, conn, schema="dbo"):
             cursor.execute(f"DELETE FROM {_ident(schema)}.{_ident(t)}")
         for t in tabelas:
             _inserir(cursor, schema, t, dados_por_tabela[t])
+            logging.info(
+                f"Destino: {schema}.{t} carregada com {len(dados_por_tabela[t])} registros"
+            )
+    finally:
+        cursor.close()
+
 
 def executar_carga():
     """Lê o bronze, substitui o conteúdo do destino numa única transação e confirma."""

@@ -5,9 +5,19 @@ import json
 import os
 import re
 
+FONTE = "itsm"
+
 TABELAS = [
-    "chamado", "analista", "categoria", "chamado_sla", "chamado_status_historico",
-    "cliente_organizacao", "csat_avaliacao", "fila", "sla", "solicitante",
+    "chamado",
+    "analista",
+    "categoria",
+    "chamado_sla",
+    "chamado_status_historico",
+    "cliente_organizacao",
+    "csat_avaliacao",
+    "fila",
+    "sla",
+    "solicitante",
 ]
 
 RE_DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}")
@@ -44,7 +54,9 @@ def tipo_coluna(valores):
     strs = [int(t[4:]) for t in tipos if t.startswith("STR:")]
     if strs or len(tipos) > 1 and not tipos <= {"INT", "BIGINT", "DECIMAL(18,4)"}:
         maior = max(strs) if strs else 50
-        return "NVARCHAR(MAX)" if maior > 1000 else f"NVARCHAR({max(50, ((maior // 50) + 1) * 50 * 2)})"
+        if maior > 1000:
+            return "NVARCHAR(MAX)"
+        return f"NVARCHAR({max(50, ((maior // 50) + 1) * 50 * 2)})"
     if "DECIMAL(18,4)" in tipos:
         return "DECIMAL(18,4)"
     if "BIGINT" in tipos:
@@ -75,11 +87,12 @@ def carregar_local(pasta):
 
 def carregar_storage():
     from azure.storage.blob import BlobServiceClient
+
     svc = BlobServiceClient.from_connection_string(os.environ["STORAGE_CONNECTION_STRING"])
     cont = svc.get_container_client(os.getenv("CONTAINER_NAME", "bronze"))
     out = {}
     for t in TABELAS:
-        blobs = sorted(b.name for b in cont.list_blobs(name_starts_with=f"{t}/"))
+        blobs = sorted(b.name for b in cont.list_blobs(name_starts_with=f"{FONTE}/{t}/"))
         if blobs:
             conteudo = cont.download_blob(blobs[-1]).readall().decode("utf-8-sig")
             out[t] = ler_registros(blobs[-1], conteudo)
@@ -97,10 +110,36 @@ def gerar_sql(dados, schema="dbo"):
         defs = []
         for c in colunas:
             tipo = tipo_coluna([r.get(c) for r in regs])
-            nulo = "NOT NULL" if c.lower().startswith("id") and all(r.get(c) not in (None, "") for r in regs) else "NULL"
+            sem_vazios = all(r.get(c) not in (None, "") for r in regs)
+            nulo = "NOT NULL" if c.lower().startswith("id") and sem_vazios else "NULL"
             defs.append(f"    [{c}] {tipo} {nulo}")
-        linhas.append(f"IF OBJECT_ID('{schema}.{t}', 'U') IS NULL\nCREATE TABLE {schema}.{t} (\n" + ",\n".join(defs) + "\n);\nGO\n")
+        linhas.append(
+            f"IF OBJECT_ID('{schema}.{t}', 'U') IS NULL\n"
+            f"CREATE TABLE {schema}.{t} (\n" + ",\n".join(defs) + "\n);\nGO\n"
+        )
     return "\n".join(linhas)
+
+
+def executar_sql(sql):
+    """Executa o script no banco de destino (variáveis DEST_*), separando os blocos por GO."""
+    import pymssql
+
+    conn = pymssql.connect(
+        server=os.environ["DEST_HOST"],
+        user=os.environ["DEST_USER"],
+        password=os.environ["DEST_PASSWORD"],
+        database=os.environ["DEST_DATABASE"],
+        port=os.getenv("DEST_PORT", "1433"),
+        login_timeout=30,
+    )
+    try:
+        cursor = conn.cursor()
+        for bloco in re.split(r"^\s*GO\s*$", sql, flags=re.MULTILINE | re.IGNORECASE):
+            if bloco.strip():
+                cursor.execute(bloco)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":
@@ -108,6 +147,7 @@ if __name__ == "__main__":
     ap.add_argument("--pasta")
     ap.add_argument("--storage", action="store_true")
     ap.add_argument("--saida", default="create_tables.sql")
+    ap.add_argument("--executar", action="store_true", help="cria as tabelas no banco de destino")
     a = ap.parse_args()
     if not a.pasta and not a.storage:
         ap.error("use --pasta <dir> ou --storage")
@@ -115,3 +155,7 @@ if __name__ == "__main__":
     with open(a.saida, "w", encoding="utf-8") as f:
         f.write(gerar_sql(dados))
     print(f"OK: {a.saida} gerado com {len(dados)} tabela(s).")
+    if a.executar:
+        with open(a.saida, encoding="utf-8") as f:
+            executar_sql(f.read())
+        print("OK: tabelas criadas no banco de destino.")
