@@ -137,6 +137,7 @@ def timer_trigger_captura_chamado(myTimer: func.TimerRequest) -> None:
             conn.close()
             logging.info("Conexão encerrada.")
 
+
 @app.timer_trigger(
     schedule="0 0 8 * * *", arg_name="myTimer", run_on_startup=False, use_monitor=False
 )
