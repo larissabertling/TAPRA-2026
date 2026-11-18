@@ -40,7 +40,7 @@ def conectar_destino():
 def ler_ultimo_bronze(tabela):
     """Lê o arquivo JSON mais recente da tabela no container bronze."""
     svc = BlobServiceClient.from_connection_string(os.environ["STORAGE_CONNECTION_STRING"])
-    container = svc.get_container_client(os.getenv("CONTAINER_NAME", "bronze"))
+    container = svc.get_container_client(os.getenv("BRONZE_CONTAINER", "bronze"))
     # O nome inclui ano=/mes=/dia= e o carimbo AAAAMMDDTHHMMSSZ, então o último em
     # ordem alfabética é o mais recente.
     blobs = sorted(b.name for b in container.list_blobs(name_starts_with=f"{FONTE}/{tabela}/"))
