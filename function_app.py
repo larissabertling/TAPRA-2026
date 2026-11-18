@@ -21,7 +21,7 @@ def get_bronze_container() -> ContainerClient:
     """Cliente do container bronze. A conexão vem de variável de ambiente."""
     return ContainerClient.from_connection_string(
         conn_str=os.environ["STORAGE_CONNECTION_STRING"],
-        container_name=os.getenv("CONTAINER_NAME", "bronze"),
+        container_name=os.getenv("BRONZE_CONTAINER", "bronze"),
     )
 
 
@@ -122,7 +122,7 @@ def timer_trigger_captura_chamado(myTimer: func.TimerRequest) -> None:
             login_timeout=15,
         )
         cursor = conn.cursor(as_dict=True)
-        cursor.execute("SELECT TOP 100 * FROM chamado")
+        cursor.execute("SELECT TOP 100 * FROM itsm.chamado")
         linhas = cursor.fetchall()
 
         logging.info(f"Registros capturados: {len(linhas)}")
