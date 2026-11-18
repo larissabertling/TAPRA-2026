@@ -1,8 +1,12 @@
 {
-    "azureFunctions.deploySubpath": ".",
-    "azureFunctions.scmDoBuildDuringDeployment": true,
-    "azureFunctions.pythonVenv": ".venv",
-    "azureFunctions.projectLanguage": "Python",
-    "azureFunctions.projectRuntime": "~4",
-    "debug.internalConsoleOptions": "neverOpen"
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "SQL_HOST": "SEU_SERVIDOR.database.windows.net",
+    "SQL_DATABASE": "itsm",
+    "SQL_USER": "SEU_USUARIO",
+    "SQL_PASSWORD": "SUA_SENHA",
+    "SQL_PORT": "1433"
+  }
 }
