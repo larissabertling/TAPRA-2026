@@ -89,7 +89,7 @@ def carregar_storage():
     from azure.storage.blob import BlobServiceClient
 
     svc = BlobServiceClient.from_connection_string(os.environ["STORAGE_CONNECTION_STRING"])
-    cont = svc.get_container_client(os.getenv("CONTAINER_NAME", "bronze"))
+    cont = svc.get_container_client(os.getenv("BRONZE_CONTAINER", "bronze"))
     out = {}
     for t in TABELAS:
         blobs = sorted(b.name for b in cont.list_blobs(name_starts_with=f"{FONTE}/{t}/"))
